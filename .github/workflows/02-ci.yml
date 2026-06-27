@@ -76,3 +76,8 @@ jobs:
         with:
           scan-type: 'config'
           scan-ref: 'Dockerfile'
+
+      - name: Check Linting
+        uses: astral-sh/ruff-action@v4
+
+
