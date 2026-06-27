@@ -21,8 +21,10 @@ on:
 
 jobs:
   say-hello:
+    if: github.event.pull_request.merged == true
     # GitHub provides a fresh runner for the job.
     runs-on: ubuntu-latest
+    
 
     steps:
       - name: Say hello
