@@ -2,8 +2,8 @@
 # It verifies a change by running tests on a fresh runner.
 name: 02 CI Workflow
 
-env:
-  python_version: '3.12'
+#env:
+#  python_version: '3.12'
 on:
 
   schedule:
@@ -38,7 +38,7 @@ jobs:
         # Prepare Python on the runner. This does not change the student laptop.
         uses: actions/setup-python@v6
         with:
-          python-version: ${{env.python_version}}
+          python-version: ${{secrets.PYTHON_VERSION}}
 
       - name: Check Python version
         
