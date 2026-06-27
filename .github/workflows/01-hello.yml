@@ -4,11 +4,11 @@ name: 01 Hello Workflow
 
 on:
   # Run automatically when this workflow file changes.
-  '''
-  push:
-    paths:
-      - ".github/workflows/01-hello.yml"
-    '''
+  
+  #push:
+  #  paths:
+  #    - ".github/workflows/01-hello.yml"
+    
   # Run automatically when pull request opened on main
   pull_request:
     types: [opened]
