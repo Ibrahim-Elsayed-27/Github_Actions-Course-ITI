@@ -24,6 +24,10 @@ jobs:
     # The runner is the temporary machine that executes the steps below.
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        version: [3.12, 3.13]    
+
     steps:
       - name: Check out repository
         # Download the repository contents onto the runner.
@@ -37,8 +41,9 @@ jobs:
       - name: Set up Python
         # Prepare Python on the runner. This does not change the student laptop.
         uses: actions/setup-python@v6
+
         with:
-          python-version: ${{secrets.PYTHON_VERSION}}
+          python-version: ${{ matrix.version }}
 
       - name: Check Python version
         
