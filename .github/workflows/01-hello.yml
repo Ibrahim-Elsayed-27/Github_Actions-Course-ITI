@@ -12,7 +12,7 @@ on:
   
   # Run automatically when pull request opened on main
   pull_request:
-    types: [opened]
+    types: [closed]
     branches:
       - main
   # Allow a safe manual run from the Actions tab too.
