@@ -1,7 +1,7 @@
 # This is the first real CI workflow in the course.
 # It verifies a change by running tests on a fresh runner.
 name: 02 CI Workflow
-
+python_version: 3.12
 on:
 
   schedule:
@@ -36,7 +36,7 @@ jobs:
         # Prepare Python on the runner. This does not change the student laptop.
         uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: ${python_version}
 
       - name: Check Python version
         
