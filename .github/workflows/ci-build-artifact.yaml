@@ -1,52 +1,166 @@
-deploy-package:
-runs-on: ubuntu-latest
-needs: build-package
+name: CI Build Artifact Workflow
 
-steps:
-- name: Download build artifact
-uses: actions/download-artifact@v4
-with:
-name: ${{ env.ARTIFACT_NAME }}
-path: downloaded-artifact
+on:
 
-```
-- name: Show downloaded files
-  run: ls -R downloaded-artifact
+    push:
+        paths:
+        - "app/**"
+        - "tests/**"
+        - ".github/workflows/02-ci.yml"
+    # Students start this workflow manually from the Actions tab.
+    workflow_dispatch:
 
-- name: Load Docker image
-  run: docker load --input "downloaded-artifact/${IMAGE_TAR}"
+permissions:
+    contents: read
+    security-events: write
 
-- name: Read image metadata from build artifact
-  id: image-metadata
-  run: |
-    source "downloaded-artifact/${IMAGE_METADATA}"
-    echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
-    echo "image_reference=${IMAGE_REFERENCE}" >> "$GITHUB_OUTPUT"
 
-- name: Show exact image reference
-  run: echo "Deploying ${{ steps.image-metadata.outputs.image_reference }}"
+env:
+    IMAGE_NAME: tiny-health-app
+    IMAGE_TAR: tiny-health-app.tar
+    IMAGE_METADATA: image-metadata.env
+    ARTIFACT_NAME: tiny-health-app-image
+    CONTAINER_NAME: tiny-health-container
+    APP_PORT: "8000"
 
-- name: Start container
-  run: |
-    docker run -d \
-      --name "${CONTAINER_NAME}" \
-      -p "${APP_PORT}:8000" \
-      "${{ steps.image-metadata.outputs.image_reference }}"
 
-- name: Smoke test deployed app
-  run: |
-    for attempt in 1 2 3 4 5; do
-      if curl --fail --silent "http://127.0.0.1:${APP_PORT}/health"; then
-        exit 0
-      fi
-      echo "Waiting for app to become ready..."
-      sleep 2
-    done
+jobs:
+    build-package:
+    # Use a fresh GitHub-hosted runner for the build.
+    runs-on: ubuntu-latest
 
-    echo "App did not become ready in time."
-    exit 1
+    steps:
+        - name: Check out repository
+        # Get the repository files onto the runner.
+        uses: actions/checkout@v6
 
-- name: Stop container
-  if: always()
-  run: docker rm -f "${CONTAINER_NAME}" || true
-```
+        - name: Set up Python
+        # Prepare Python so the workflow can run the tests first.
+        uses: actions/setup-python@v6
+        with:
+            python-version: "3.12"
+
+        - name: Run tests
+        # Build only after the verification step passes.
+        run: python -m unittest discover -s tests -v
+
+        - name: Set image tag
+        # Use today's UTC date plus the GitHub run ID.
+        # This keeps the tag easy to explain and still unique for the run.
+        id: image-tag
+        run: |
+            TODAY="$(date -u +%Y-%m-%d)"
+            IMAGE_TAG="${TODAY}-${GITHUB_RUN_ID}"
+            echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
+
+        - name: Build Docker image with docker build
+        # Create the packaged application image with one traceable tag.
+        # The deploy workflow will run this exact same tag later.
+        run: |
+            docker build \
+            -t "${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}" \
+            .
+
+
+        - name: Save Docker image as artifact file
+        # Convert that exact tagged image into a file that can be reused later.
+        run: docker save "${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}" -o "${IMAGE_TAR}"
+
+
+        - name: Run Trivy scanner on the tarball artifact
+        # Scan the actual saved .tar archive file and output to a SARIF file.
+        uses: aquasecurity/trivy-action@master
+        with:
+            input: "${{ env.IMAGE_TAR }}"
+            format: 'sarif'                  # Changed to SARIF format
+            output: 'trivy-results.sarif'    # Output file destination
+            exit-code: '0'                   # '0' allows the workflow to proceed and upload results
+            ignore-unfixed: true
+            vuln-type: 'os,library'
+            severity: 'CRITICAL,HIGH'
+
+        - name: Upload Trivy scan results to GitHub Security tab
+        # Publishes the generated SARIF report straight to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+            sarif_file: 'trivy-results.sarif'
+
+
+        - name: Save image metadata
+        # Keep the exact built image reference alongside the tar file.
+        # The deploy workflow reads this file later instead of recreating the tag.
+        run: |
+            IMAGE_REFERENCE="${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}"
+            printf 'IMAGE_TAG=%s\n' "${{ steps.image-tag.outputs.image_tag }}" > "${IMAGE_METADATA}"
+            printf 'IMAGE_REFERENCE=%s\n' "${IMAGE_REFERENCE}" >> "${IMAGE_METADATA}"
+
+        - name: Upload build artifact
+        # Store the packaged output so a later workflow can use the exact same package.
+        uses: actions/upload-artifact@v4
+        with:
+            name: ${{ env.ARTIFACT_NAME }}
+            path: |
+            ${{ env.IMAGE_TAR }}
+            ${{ env.IMAGE_METADATA }}
+            retention-days: 7
+
+
+
+    deploy-package:
+        # Use a fresh runner for the deployment simulation.
+        runs-on: ubuntu-latest
+        needs: build-package
+
+        steps:
+            - name: Download build artifact
+                # Simplified: Automatically grabs from the current running workflow
+                uses: actions/download-artifact@v4
+                with:
+                    name: ${{ env.ARTIFACT_NAME }}
+                    path: downloaded-artifact
+
+            - name: Show downloaded files
+                # Quick visibility step so students can see what arrived from the build.
+                run: ls -R downloaded-artifact
+
+            - name: Load Docker image
+                # Turn the saved artifact file back into a Docker image.
+                run: docker load --input "downloaded-artifact/${IMAGE_TAR}"
+
+            - name: Read image metadata from build artifact
+                # Read the exact built image reference that the build workflow saved.
+                id: image-metadata
+                run: |
+                    source "downloaded-artifact/${IMAGE_METADATA}"
+                    echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+                    echo "image_reference=${IMAGE_REFERENCE}" >> "$GITHUB_OUTPUT"
+
+            - name: Show exact image reference
+                # Visibility step so students can see what exact package is being delivered.
+                run: echo "Deploying ${{ steps.image-metadata.outputs.image_reference }}"
+
+            - name: Start container
+                # Start the exact same tagged image that the build workflow created.
+                run: |
+                    docker run -d \
+                        --name "${CONTAINER_NAME}" \
+                        -p "${APP_PORT}:8000" \
+                        "${{ steps.image-metadata.outputs.image_reference }}"
+
+            - name: Smoke test deployed app
+                # Retry a few times because app startup can take a moment.
+                run: |
+                    for attempt in 1 2 3 4 5; do
+                        if curl --fail --silent "http://127.0.0.1:${APP_PORT}/health"; then
+                        exit 0
+                        fi
+                        echo "Waiting for app to become ready..."
+                        sleep 2
+                    done
+                    echo "App did not become ready in time."
+                    exit 1
+
+            - name: Stop container
+                if: always()
+                # Clean up even if an earlier step fails.
+                run: docker rm -f "${CONTAINER_NAME}" || true
