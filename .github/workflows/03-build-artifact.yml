@@ -6,6 +6,10 @@ on:
   # Students start this workflow manually from the Actions tab.
   workflow_dispatch:
 
+
+permissions:
+  contents: read
+  security-events: write
 env:
   # Keep common image values in one place so the build steps stay readable.
   IMAGE_NAME: tiny-health-app
@@ -67,7 +71,13 @@ jobs:
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
-          
+      - name: Upload Trivy scan results to GitHub Security tab
+        # Publishes the generated SARIF report straight to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+
       - name: Save image metadata
         # Keep the exact built image reference alongside the tar file.
         # The deploy workflow reads this file later instead of recreating the tag.
