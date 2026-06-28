@@ -64,7 +64,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           docker build \
-            -t "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}${{ steps.image-tag.outputs.image_tag }}" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}-${{ steps.image-tag.outputs.image_tag }}" \
             -t "$IMAGE_NAME:${{ steps.image-tag.outputs.image_tag }}" \
             .
 
@@ -72,7 +72,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}${{ steps.image-tag.outputs.image_tag }}"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}-${{ steps.image-tag.outputs.image_tag }}"
 
       - name: Save Docker image as artifact file
         # Convert that exact tagged image into a file that can be reused later.
@@ -98,7 +98,7 @@ jobs:
       - name: Save image metadata
         # Keep the exact built image reference alongside the tar file.
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REGISTRY: "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}-${{ steps.image-tag.outputs.image_tag }}"
         run: |
           IMAGE_REFERENCE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_NAME:${{ steps.image-tag.outputs.image_tag }}"
           printf 'IMAGE_TAG=%s\n' "${{ steps.image-tag.outputs.image_tag }}" > "${IMAGE_
