@@ -60,7 +60,7 @@ jobs:
         run: docker save "${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}" -o "${IMAGE_TAR}"
 
 
-    - name: Run Trivy scanner on the tarball artifact
+      - name: Run Trivy scanner on the tarball artifact
         # Scan the actual saved .tar archive file and output to a SARIF file.
         uses: aquasecurity/trivy-action@master
         with:
