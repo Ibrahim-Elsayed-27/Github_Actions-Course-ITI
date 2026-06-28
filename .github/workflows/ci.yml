@@ -9,12 +9,14 @@ on:
 permissions:
   contents: read
   security-events: write
+
 env:
   # Keep common image values in one place so the build steps stay readable.
   IMAGE_NAME: tiny-health-app
   IMAGE_TAR: tiny-health-app.tar
   IMAGE_METADATA: image-metadata.env
   ARTIFACT_NAME: tiny-health-app-image
+  ECR_REPOSITORY: github/day2
 
 jobs:
   build-package:
@@ -45,45 +47,62 @@ jobs:
           IMAGE_TAG="${TODAY}-${GITHUB_RUN_ID}"
           echo "image_tag=$IMAGE_TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Build Docker image with docker build
-        # Create the packaged application image with one traceable tag.
-        # The deploy workflow will run this exact same tag later.
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1 
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker image
+        # Create the packaged application image with both ECR and local tags.
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           docker build \
-            -t "${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_NAME }}-${{ steps.image-tag.outputs.image_tag }}" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:latest" \
+            -t "$IMAGE_NAME:${{ steps.image-tag.outputs.image_tag }}" \
             .
-
+            
+      - name: Push Image to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_NAME }}-${{ steps.image-tag.outputs.image_tag }}"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
       - name: Save Docker image as artifact file
         # Convert that exact tagged image into a file that can be reused later.
-        run: docker save "${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}" -o "${IMAGE_TAR}"
-
+        run: docker save "$IMAGE_NAME:${{ steps.image-tag.outputs.image_tag }}" -o "${IMAGE_TAR}"
 
       - name: Run Trivy scanner on the tarball artifact
         # Scan the actual saved .tar archive file and output to a SARIF file.
         uses: aquasecurity/trivy-action@master
         with:
           input: "${{ env.IMAGE_TAR }}"
-          format: 'sarif'                  # Changed to SARIF format
-          output: 'trivy-results.sarif'    # Output file destination
-          exit-code: '0'                   # '0' allows the workflow to proceed and upload results
+          format: 'sarif'                  
+          output: 'trivy-results.sarif'    
+          exit-code: '0'                   
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
 
       - name: Upload Trivy scan results to GitHub Security tab
-        # Publishes the generated SARIF report straight to GitHub Code Scanning
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
 
-
       - name: Save image metadata
         # Keep the exact built image reference alongside the tar file.
-        # The deploy workflow reads this file later instead of recreating the tag.
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          IMAGE_REFERENCE="${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}"
-          printf 'IMAGE_TAG=%s\n' "${{ steps.image-tag.outputs.image_tag }}" > "${IMAGE_METADATA}"
+          IMAGE_REFERENCE="$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}-${{ steps.image-tag.outputs.image_tag }}"
           printf 'IMAGE_REFERENCE=%s\n' "${IMAGE_REFERENCE}" >> "${IMAGE_METADATA}"
 
       - name: Upload build artifact
