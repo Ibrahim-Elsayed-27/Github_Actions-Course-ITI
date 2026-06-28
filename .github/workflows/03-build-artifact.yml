@@ -50,6 +50,17 @@ jobs:
             -t "${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}" \
             .
 
+      - name: Run Trivy vulnerability scanner
+        # Scan the locally loaded docker image before running it
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.image-metadata.outputs.image_reference }}
+          format: 'table'
+          exit-code: '1' # Fails the build if vulnerabilities are found
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+          
       - name: Save Docker image as artifact file
         # Convert that exact tagged image into a file that can be reused later.
         run: docker save "${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}" -o "${IMAGE_TAR}"
