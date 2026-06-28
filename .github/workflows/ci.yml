@@ -16,7 +16,7 @@ env:
   IMAGE_TAR: tiny-health-app.tar
   IMAGE_METADATA: image-metadata.env
   ARTIFACT_NAME: tiny-health-app-image
-  ECR_REPOSITORY: my-ecr-repo-name # Replace with your ECR repository name
+  ECR_REPOSITORY: github/day2
 
 jobs:
   build-package:
@@ -64,7 +64,7 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           docker build \
-            -t "$ECR_REGISTRY/$ECR_REPOSITORY/$IMAGE_NAME:${{ steps.image-tag.outputs.image_tag }}" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}${{ steps.image-tag.outputs.image_tag }}" \
             -t "$IMAGE_NAME:${{ steps.image-tag.outputs.image_tag }}" \
             .
 
@@ -72,7 +72,7 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY/$IMAGE_NAME:${{ steps.image-tag.outputs.image_tag }}"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}${{ steps.image-tag.outputs.image_tag }}"
 
       - name: Save Docker image as artifact file
         # Convert that exact tagged image into a file that can be reused later.
