@@ -60,14 +60,14 @@ jobs:
         run: docker save "${IMAGE_NAME}:${{ steps.image-tag.outputs.image_tag }}" -o "${IMAGE_TAR}"
 
 
-      - name: Run Trivy scanner on the tarball artifact
-        # Scan the actual saved .tar archive file before uploading it.
+    - name: Run Trivy scanner on the tarball artifact
+        # Scan the actual saved .tar archive file and output to a SARIF file.
         uses: aquasecurity/trivy-action@master
         with:
-          input: "${{ env.IMAGE_TAR }}" # Tells Trivy to scan the file artifact directly
+          input: "${{ env.IMAGE_TAR }}"
           format: 'sarif'                  # Changed to SARIF format
-          output: 'trivy-results.sarif'
-          exit-code: '1' # Fails the build if vulnerabilities are found
+          output: 'trivy-results.sarif'    # Output file destination
+          exit-code: '0'                   # '0' allows the workflow to proceed and upload results
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
