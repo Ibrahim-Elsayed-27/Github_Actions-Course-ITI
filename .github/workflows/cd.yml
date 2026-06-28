@@ -10,7 +10,7 @@ on:
 env:
   CONTAINER_NAME: tiny-health-container
   APP_PORT: "8000"
-  IMAGE: "254652353999.dkr.ecr.us-east-1.amazonaws.com/github/day2:tiny-health-app-2026-06-28-28320521988"
+  IMAGE: "254652353999.dkr.ecr.us-east-1.amazonaws.com/github/day2:latest"
 
 jobs:
   deploy:

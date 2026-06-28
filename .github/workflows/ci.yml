@@ -64,15 +64,17 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           docker build \
-            -t "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}-${{ steps.image-tag.outputs.image_tag }}" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_NAME }}-${{ steps.image-tag.outputs.image_tag }}" \
+            -t "$ECR_REGISTRY/$ECR_REPOSITORY:latest" \
             -t "$IMAGE_NAME:${{ steps.image-tag.outputs.image_tag }}" \
             .
-
+            
       - name: Push Image to Amazon ECR
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}-${{ steps.image-tag.outputs.image_tag }}"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:${{ env.IMAGE_NAME }}-${{ steps.image-tag.outputs.image_tag }}"
+          docker push "$ECR_REGISTRY/$ECR_REPOSITORY:latest"
 
       - name: Save Docker image as artifact file
         # Convert that exact tagged image into a file that can be reused later.
