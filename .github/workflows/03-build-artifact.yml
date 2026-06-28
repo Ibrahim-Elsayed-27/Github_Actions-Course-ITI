@@ -65,7 +65,8 @@ jobs:
         uses: aquasecurity/trivy-action@master
         with:
           input: "${{ env.IMAGE_TAR }}" # Tells Trivy to scan the file artifact directly
-          format: 'table'
+          format: 'sarif'                  # Changed to SARIF format
+          output: 'trivy-results.sarif'
           exit-code: '1' # Fails the build if vulnerabilities are found
           ignore-unfixed: true
           vuln-type: 'os,library'
@@ -73,7 +74,7 @@ jobs:
 
       - name: Upload Trivy scan results to GitHub Security tab
         # Publishes the generated SARIF report straight to GitHub Code Scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
 
