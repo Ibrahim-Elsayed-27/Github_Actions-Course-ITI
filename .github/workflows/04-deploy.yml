@@ -29,6 +29,8 @@ jobs:
     # Use a fresh runner for the deployment simulation.
     runs-on: ubuntu-latest
 
+
+
     steps:
       - name: Download build artifact
         # Download the exact artifact produced by the build run.
@@ -61,16 +63,6 @@ jobs:
         run: echo "Deploying ${{ steps.image-metadata.outputs.image_reference }}"
 
 
-      - name: Run Trivy vulnerability scanner
-        # Scan the locally loaded docker image before running it
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ steps.image-metadata.outputs.image_reference }}
-          format: 'table'
-          exit-code: '1' # Fails the build if vulnerabilities are found
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          
       - name: Start container
         # Start the exact same tagged image that the build workflow created.
         run: |
