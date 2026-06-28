@@ -1,5 +1,3 @@
-# This workflow completes the story by delivering the saved package.
-# It starts after the build workflow finishes successfully.
 name: cd workflow
 
 on:
@@ -10,89 +8,60 @@ on:
       - closed
 
 env:
-  IMAGE_NAME: tiny-health-app
-  IMAGE_TAR: tiny-health-app.tar
-  IMAGE_METADATA: image-metadata.env
-  ARTIFACT_NAME: tiny-health-app-image
   CONTAINER_NAME: tiny-health-container
   APP_PORT: "8000"
-
-permissions:
-  # Read access is enough because this workflow only downloads artifacts and reads repo data.
-  actions: read
-  contents: read
+  IMAGE: "254652353999.dkr.ecr.us-east-1.amazonaws.com/github/day2:tiny-health-app-2026-06-28-28320521988"
 
 jobs:
-  deploy-package:
+  deploy:
     if: github.event.pull_request.merged == true
-    # Use a fresh runner for the deployment simulation.
     runs-on: ubuntu-latest
 
-
-
     steps:
-      - name: Download build artifact
-        # Download the exact artifact produced by the build run.
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          github-token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          run-id: ${{ github.event.workflow_run.id }}
-          path: downloaded-artifact
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Show downloaded files
-        # Quick visibility step so students can see what arrived from the build.
-        run: ls -R downloaded-artifact
-
-      - name: Load Docker image
-        # Turn the saved artifact file back into a Docker image.
-        run: docker load --input "downloaded-artifact/${IMAGE_TAR}"
-
-      - name: Read image metadata from build artifact
-        # Read the exact built image reference that the build workflow saved.
-        id: image-metadata
+      - name: Configure SSH key
         run: |
-          source "downloaded-artifact/${IMAGE_METADATA}"
-          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "image_reference=${IMAGE_REFERENCE}" >> "$GITHUB_OUTPUT"
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
 
-      - name: Show exact image reference
-        # Visibility step so students can see what exact package is being delivered.
-        run: echo "Deploying ${{ steps.image-metadata.outputs.image_reference }}"
-
-
-      - name: Start container
-        # Start the exact same tagged image that the build workflow created.
+      - name: Add EC2 host to known_hosts
         run: |
-          docker run -d \
-            --name "${CONTAINER_NAME}" \
-            -p "${APP_PORT}:8000" \
-            "${{ steps.image-metadata.outputs.image_reference }}"
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-      - name: List containsers
-
+      - name: Deploy on EC2
         run: |
-          docker ps -a
+          ssh ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }} << 'EOF'
 
+            set -e
 
-      - name: Smoke test deployed app
-        # Retry a few times because app startup can take a moment.
-        run: |
-          for attempt in 1 2 3 4 5; do
-            if curl --fail --silent "http://127.0.0.1:${APP_PORT}/health"; then
-              exit 0
-            fi
-            echo "Waiting for app to become ready..."
-            sleep 2
-          done
-          echo "App did not become ready in time."
-          exit 1
+            IMAGE=${{env.IMAGE}}
 
-      - name: test deployed app
-        run: |
-            curl -fsS "http://127.0.0.1:${APP_PORT}/health"
-      - name: Stop container
-        if: always()
-        # Clean up even if an earlier step fails.
-        run: docker rm -f "${CONTAINER_NAME}" || true
+            echo "Logging into ECR..."
+
+            aws ecr get-login-password --region us-east-1 \
+            | docker login --username AWS --password-stdin \
+            254652353999.dkr.ecr.us-east-1.amazonaws.com
+
+            echo "Pulling latest image..."
+
+            docker pull $IMAGE
+
+            echo "Stopping old container..."
+
+            docker rm -f tiny-health-container || true
+
+            echo "Starting new container..."
+
+            docker run -d \
+              --name tiny-health-container \
+              -p 8000:8000 \
+              --restart unless-stopped \
+              $IMAGE
+
+            echo "Deployment complete."
+
+          EOF
+

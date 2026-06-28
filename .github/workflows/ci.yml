@@ -98,7 +98,7 @@ jobs:
       - name: Save image metadata
         # Keep the exact built image reference alongside the tar file.
         env:
-          ECR_REGISTRY: "$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}-${{ steps.image-tag.outputs.image_tag }}"
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
-          IMAGE_REFERENCE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_NAME:${{ steps.image-tag.outputs.image_tag }}"
+          IMAGE_REFERENCE="$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}-${{ steps.image-tag.outputs.image_tag }}"
           printf 'IMAGE_TAG=%s\n' "${{ steps.image-tag.outputs.image_tag }}" > "${IMAGE_
