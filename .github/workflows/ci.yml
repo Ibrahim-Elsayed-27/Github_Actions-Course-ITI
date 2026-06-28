@@ -103,4 +103,14 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         run: |
           IMAGE_REFERENCE="$ECR_REGISTRY/$ECR_REPOSITORY:${{env.IMAGE_NAME}}-${{ steps.image-tag.outputs.image_tag }}"
-          printf 'IMAGE_TAG=%s\n' "${{ steps.image-tag.outputs.image_tag }}" > "${IMAGE_
+          printf 'IMAGE_REFERENCE=%s\n' "${IMAGE_REFERENCE}" >> "${IMAGE_METADATA}"
+
+      - name: Upload build artifact
+        # Store the packaged output so a later workflow can use the exact same package.
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: |
+            ${{ env.IMAGE_TAR }}
+            ${{ env.IMAGE_METADATA }}
+          retention-days: 7
